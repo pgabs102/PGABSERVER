@@ -1,0 +1,55 @@
+name: Build Monitoring System APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Initialize Capacitor & Android Project
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "GPS Monitoring" "com.scipics.gpsmonitoring" --web-dir www
+          npx cap add android
+
+      - name: Add GPS & Internet Permissions to AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i '/<application/i \
+          <uses-permission android:name="android.permission.INTERNET" />\
+          <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\
+          <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\
+          <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\
+          <uses-feature android:name="android.hardware.location.gps" android:required="false" />' $MANIFEST
+
+      - name: Sync Web Assets & Build Debug APK
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GPS-Monitoring-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
