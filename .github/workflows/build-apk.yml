@@ -41,9 +41,19 @@ jobs:
           <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\
           <uses-feature android:name="android.hardware.location.gps" android:required="false" />' $MANIFEST
 
-      - name: Sync Web Assets & Build Debug APK
+      - name: Fix Kotlin Duplicate Classes & Build Debug APK
         run: |
           npx cap sync android
+          cat << 'EOF' >> android/app/build.gradle
+
+          configurations.all {
+              resolutionStrategy {
+                  force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+              }
+          }
+          EOF
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
