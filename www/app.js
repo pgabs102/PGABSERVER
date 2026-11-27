@@ -1,4 +1,3 @@
-
 const SUPABASE_URL = "https://anidcxlmjiyrjsbvchrs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_An-AXhwWYFlFEZ4oxfK8qg_kuaW7rOI";
 
@@ -245,7 +244,9 @@ function batteryLabel(user) {
 
 function shortPlace(name) {
   if (!name) return "Hindi pa alam ang lugar";
-  return name.split(",").slice(0, 2).join(",").trim();
+  const parts = name.split(",").map((s) => s.trim()).filter(Boolean);
+  const unique = parts.filter((item, idx) => idx === 0 || item.toLowerCase() !== parts[idx - 1].toLowerCase());
+  return unique.slice(0, 2).join(", ");
 }
 
 function isReallyOnline(p) {
@@ -291,6 +292,7 @@ function initUserMap() {
   userMap.addControl(new maplibregl.NavigationControl());
   addRecenterButton();
   addUserPlaceToggle();
+  syncPlaceLabelsState();
 }
 
 function addUserPlaceToggle() {
@@ -704,6 +706,7 @@ let usersChannel = null;
 let usersPollTimer = null;
 let usersMyId = null;
 let otherUserMarkers = {};
+let otherUserData = {};
 
 async function loadAllUsers(myId) {
   const box = document.getElementById("usersListBody");
@@ -711,7 +714,7 @@ async function loadAllUsers(myId) {
 
   const { data, error } = await db
     .from("profiles")
-    .select("id, full_name, role, is_online, last_seen, battery_level, is_charging, location_name, latitude, longitude")
+    .select("id, full_name, phone, role, is_online, last_seen, battery_level, is_charging, location_name, latitude, longitude")
     .neq("id", myId)
     .neq("role", "admin")
     .order("full_name", { ascending: true });
@@ -735,27 +738,46 @@ async function loadAllUsers(myId) {
     const status = online ? "Online" : "Offline · " + timeAgo(p.last_seen);
     const place = p.location_name ? shortPlace(p.location_name) : "Walang lokasyon";
     const name = escapeHtml(p.full_name || "User");
+    const phoneHtml = p.phone ? `📞 ${telLink(p.phone)}` : "<span style='color:#94a3b8;'>📞 Walang numero</span>";
     const hasCoords = p.latitude != null && p.longitude != null;
     const disabled = hasCoords ? "" : "disabled";
-    const btnStyle = "padding:5px 8px;border:none;border-radius:6px;font-size:12px;color:#fff;white-space:nowrap;";
+    const opacity = hasCoords ? "1" : "0.45";
+    const btnStyle =
+      "width:100%;padding:7px 4px;border:none;border-radius:6px;font-size:11.5px;font-weight:600;" +
+      "color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;" +
+      `opacity:${opacity};`;
 
     return `
-      <div style="padding:10px;border-bottom:1px solid #e2e8f0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="padding:10px;border-bottom:1px solid #e2e8f0;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div style="min-width:0;flex:1;">
-            <div style="font-weight:600;color:#1e293b;">${dot} ${name}</div>
-            <div style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(place)}</div>
-            <div style="font-size:12px;color:${online ? "#137333" : "#64748b"};margin-top:2px;">
-              ${escapeHtml(status)} · 🔋 ${escapeHtml(batteryLabel(p))}
+            <div style="font-weight:700;font-size:14px;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${dot} ${name}
+            </div>
+            <div style="font-size:12px;margin-top:3px;">${phoneHtml}</div>
+            <div style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;">
+              📍 ${escapeHtml(place)}
             </div>
           </div>
           <button class="user-chat-btn" data-act="chat" data-uid="${escapeHtml(p.id)}" data-name="${name}" type="button"
-            style="${btnStyle}background:#1769aa;padding:6px 10px;">💬 Chat</button>
+            style="padding:7px 11px;border:none;border-radius:6px;font-size:12px;font-weight:600;color:#fff;background:#1769aa;white-space:nowrap;flex-shrink:0;">
+            💬 Chat
+          </button>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11.5px;margin-top:6px;padding-top:5px;border-top:1px dashed #e2e8f0;">
+          <span style="color:${online ? "#137333" : "#64748b"};font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            ${escapeHtml(status)}
+          </span>
+          <span style="color:#334155;font-weight:600;white-space:nowrap;flex-shrink:0;">
+            🔋 ${escapeHtml(batteryLabel(p))}
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;">
           <button type="button" data-act="route" ${disabled}
             data-lat="${p.latitude ?? ""}" data-lng="${p.longitude ?? ""}" data-name="${name}"
-            style="${btnStyle}background:#0f766e;">🧭 Ruta sa mapa</button>
+            style="${btnStyle}background:#0f766e;">🧭 Ruta</button>
           <button type="button" data-act="gmap" ${disabled}
             data-lat="${p.latitude ?? ""}" data-lng="${p.longitude ?? ""}" data-name="${name}"
             style="${btnStyle}background:#4285f4;">Google Maps</button>
@@ -780,9 +802,11 @@ function startUsersList(myId) {
 
   const box = document.createElement("div");
   box.id = "usersBox";
-  box.style.cssText = "margin-top:15px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;";
+  box.style.cssText =
+    "width:100%;max-width:100%;box-sizing:border-box;margin-top:12px;" +
+    "border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;";
   box.innerHTML = `
-    <div style="padding:8px 10px;background:#1769aa;color:#fff;font-weight:bold;">👥 Mga User</div>
+    <div style="padding:8px 10px;background:#1769aa;color:#fff;font-weight:bold;font-size:14px;">👥 Mga User</div>
     <div id="usersListBody"><div style="padding:10px;color:#64748b;font-size:13px;">Naglo-load...</div></div>
   `;
   card.insertBefore(box, sos);
@@ -835,12 +859,64 @@ function makeInitialMarkerEl(name, online) {
   el.textContent = initial.toUpperCase();
   el.title = name || "User";
   el.style.cssText =
-    "width:26px;height:26px;border-radius:50%;" +
+    "width:32px;height:32px;border-radius:50%;" +
     "background:" + (online ? "#137333" : "#94a3b8") + ";" +
-    "color:#fff;font-size:12px;font-weight:bold;font-family:sans-serif;" +
+    "color:#fff;font-size:13px;font-weight:bold;font-family:sans-serif;" +
     "display:flex;align-items:center;justify-content:center;" +
-    "border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:pointer;";
+    "border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);" +
+    "cursor:pointer;touch-action:manipulation;";
   return el;
+}
+
+function buildUserMapPopup(uid) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "font-family:Arial,sans-serif;font-size:13px;line-height:1.5;min-width:220px;";
+  const btnBase = "padding:6px 10px;border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer;";
+
+  wrap.innerHTML = `
+    <strong class="up-name" style="font-size:14px;color:#1769aa;"></strong><br>
+    <span class="up-status"></span><br>
+    <span class="up-phone"></span><br>
+    <span class="up-batt"></span><br>
+    <span class="up-place"></span><br>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+      <button type="button" class="up-chat" style="${btnBase}background:#1769aa;">💬 Chat</button>
+      <button type="button" class="up-gmap" style="${btnBase}background:#4285f4;">Google Maps</button>
+      <button type="button" class="up-waze" style="${btnBase}background:#33ccff;color:#0b1f2a;">Waze</button>
+      <button type="button" class="up-route" style="${btnBase}background:#0f766e;">🧭 Ruta</button>
+    </div>
+  `;
+
+  wrap.querySelector(".up-chat").onclick = () => {
+    const u = otherUserData[uid];
+    if (u) openUserChat(uid, u.full_name || "User");
+  };
+  wrap.querySelector(".up-gmap").onclick = () => {
+    const u = otherUserData[uid];
+    if (u && u.latitude != null && u.longitude != null) openGoogleMaps(u.latitude, u.longitude);
+  };
+  wrap.querySelector(".up-waze").onclick = () => {
+    const u = otherUserData[uid];
+    if (u && u.latitude != null && u.longitude != null) openWaze(u.latitude, u.longitude);
+  };
+  wrap.querySelector(".up-route").onclick = () => {
+    const u = otherUserData[uid];
+    if (u && u.latitude != null && u.longitude != null) showRouteOnMap(u.longitude, u.latitude, u.full_name || "User");
+  };
+
+  return wrap;
+}
+
+function updateUserPopupContent(content, p, online) {
+  content.querySelector(".up-name").textContent = p.full_name || "User";
+  content.querySelector(".up-status").innerHTML = online
+    ? '<span style="color:#137333;font-weight:bold;">🟢 Online</span>'
+    : '<span style="color:#64748b;">⚪ Offline · ' + escapeHtml(timeAgo(p.last_seen)) + '</span>';
+  content.querySelector(".up-phone").innerHTML = p.phone
+    ? "📞 " + telLink(p.phone)
+    : "📞 Walang numero";
+  content.querySelector(".up-batt").textContent = "🔋 Baterya: " + batteryLabel(p);
+  content.querySelector(".up-place").textContent = "📍 " + shortPlace(p.location_name);
 }
 
 function renderOtherUserMarkers(rows) {
@@ -852,18 +928,17 @@ function renderOtherUserMarkers(rows) {
     if (p.latitude == null || p.longitude == null) return;
 
     seenIds.add(p.id);
+    otherUserData[p.id] = p;
     const online = isReallyOnline(p);
     const lngLat = [p.longitude, p.latitude];
-    const label = `${p.full_name || "User"} · ${online ? "Online" : "Offline"} · ${shortPlace(p.location_name)}`;
     const existing = otherUserMarkers[p.id];
 
     if (existing) {
-      existing.setLngLat(lngLat);
-      const el = existing.getElement();
+      existing.marker.setLngLat(lngLat);
+      const el = existing.marker.getElement();
       el.style.background = online ? "#137333" : "#94a3b8";
       el.textContent = (Array.from((p.full_name || "U").trim())[0] || "U").toUpperCase();
       el.title = p.full_name || "User";
-      existing.getPopup().setText(label);
       let lbl = el.querySelector(".place-label");
       if (!lbl) {
         lbl = document.createElement("span");
@@ -871,31 +946,46 @@ function renderOtherUserMarkers(rows) {
         el.appendChild(lbl);
       }
       lbl.textContent = shortPlace(p.location_name);
+      updateUserPopupContent(existing.content, p, online);
     } else {
       const el = makeInitialMarkerEl(p.full_name, online);
       const lbl = document.createElement("span");
       lbl.className = "place-label";
       lbl.textContent = shortPlace(p.location_name);
       el.appendChild(lbl);
-      const popup = new maplibregl.Popup({ offset: 16 }).setText(label);
-      otherUserMarkers[p.id] = new maplibregl.Marker({ element: el })
+
+      const content = buildUserMapPopup(p.id);
+      const popup = new maplibregl.Popup({ offset: 18 }).setDOMContent(content);
+      const marker = new maplibregl.Marker({ element: el })
         .setLngLat(lngLat)
         .setPopup(popup)
         .addTo(userMap);
+
+      updateUserPopupContent(content, p, online);
+      otherUserMarkers[p.id] = { marker, content };
     }
   });
 
   Object.keys(otherUserMarkers).forEach((id) => {
     if (!seenIds.has(id)) {
-      otherUserMarkers[id].remove();
+      const entry = otherUserMarkers[id];
+      if (entry && entry.marker) entry.marker.remove();
+      else if (entry && typeof entry.remove === "function") entry.remove();
       delete otherUserMarkers[id];
+      delete otherUserData[id];
     }
   });
+
+  syncPlaceLabelsState();
 }
 
 function clearOtherUserMarkers() {
-  Object.values(otherUserMarkers).forEach((m) => m.remove());
+  Object.values(otherUserMarkers).forEach((entry) => {
+    if (entry && entry.marker) entry.marker.remove();
+    else if (entry && typeof entry.remove === "function") entry.remove();
+  });
   otherUserMarkers = {};
+  otherUserData = {};
 }
 
 // ===== Chat sa kapwa user =====
@@ -1178,20 +1268,31 @@ let showPlaceLabels = true;
 const placeLabelStyle = document.createElement("style");
 placeLabelStyle.textContent = `
   .place-label {
-    position: absolute; left: 32px; top: 2px; white-space: nowrap;
+    position: absolute; left: 38px; top: 5px; white-space: nowrap;
     background: #fff; color: #1e293b; font: 600 11px Arial, sans-serif;
     padding: 2px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.3);
     pointer-events: none;
   }
-  .hide-place-labels .place-label { display: none; }
+  .hide-place-labels .place-label,
+  .hide-place-labels .maplibregl-marker .place-label { display: none !important; }
 `;
 document.head.appendChild(placeLabelStyle);
 
+function syncPlaceLabelsState() {
+  document.body.classList.toggle("hide-place-labels", !showPlaceLabels);
+  document.querySelectorAll(".place-label").forEach((lbl) => {
+    lbl.style.display = showPlaceLabels ? "" : "none";
+  });
+  const labelText = showPlaceLabels ? "🏷️ Lugar: ON" : "🏷️ Lugar: OFF";
+  const adminBtn = document.getElementById("togglePlaceBtn");
+  if (adminBtn) adminBtn.textContent = labelText;
+  const userBtn = document.getElementById("userPlaceToggleBtn");
+  if (userBtn) userBtn.textContent = labelText;
+}
+
 function togglePlaceLabels() {
   showPlaceLabels = !showPlaceLabels;
-  document.body.classList.toggle("hide-place-labels", !showPlaceLabels);
-  const btn = document.getElementById("togglePlaceBtn");
-  if (btn) btn.textContent = showPlaceLabels ? "🏷️ Lugar: ON" : "🏷️ Lugar: OFF";
+  syncPlaceLabelsState();
 }
 
 // ===== Admin: Live GPS Map =====
@@ -1217,7 +1318,7 @@ function renderLiveMapPage() {
     <div id="liveChatPanel" style="margin-top:12px;"></div>
   `);
   document.getElementById("togglePlaceBtn").addEventListener("click", togglePlaceLabels);
-  document.body.classList.toggle("hide-place-labels", !showPlaceLabels);
+  syncPlaceLabelsState();
   initLiveMap();
   loadLiveUsers();
   livePollTimer = setInterval(loadLiveUsers, 30000);
@@ -1317,6 +1418,7 @@ function renderLiveUser(row) {
     el.appendChild(label);
   }
   label.textContent = shortPlace(row.location_name);
+  label.style.display = showPlaceLabels ? "" : "none";
 
   content.querySelector(".lp-name").textContent = name;
   content.querySelector(".lp-status").innerHTML = online
@@ -1543,11 +1645,6 @@ async function handleCreateUser(btn) {
   }
 }
 
-  
-  
-    
-
-// ===== Admin: listahan ng users =====
 // ===== Admin: i-activate / i-deactivate =====
 async function toggleUserActive(userId, makeActive) {
   const label = makeActive ? "i-activate" : "i-deactivate";
@@ -1576,6 +1673,8 @@ async function toggleUserActive(userId, makeActive) {
 
   renderUserList(lastUserListMode || "users");
 }
+
+// ===== Admin: listahan ng users =====
 async function renderUserList(mode) {
   lastUserListMode = mode;
   const formHtml = mode === "users" ? createUserFormHtml() : "";
