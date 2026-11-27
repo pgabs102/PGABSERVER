@@ -1,9 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="tl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#3d0000">
 <title>GPS Monitoring System</title>
 
 <!-- Supabase CDN -->
@@ -13,16 +13,26 @@
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
-<!-- Ikinonekta ang hiwalay na CSS file -->
+<!-- Hiwalay na CSS file -->
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- ==================== SPLASH SCREEN ANIMATION ==================== -->
+<div id="splashScreen" class="splash-screen" aria-hidden="true">
+  <div class="splash-inner">
+    <div class="splash-ring"></div>
+    <div class="splash-badge">TUKLAS</div>
+    <div class="splash-title">GPS Monitoring System</div>
+    <div class="splash-sub">Inihahanda ang live tracking...</div>
+  </div>
+</div>
 
-<!-- LOGIN SCREEN -->
+<!-- ==================== LOGIN SCREEN ==================== -->
 <section id="loginScreen">
   <div class="login-box">
+    <div class="login-pill">TUKLAS · GPS</div>
     <h2>GPS Monitoring System</h2>
-    <p style="text-align:center;color:#64748b">Account Login</p>
+    <p style="text-align:center;color:#7a6a4f;margin:0 0 10px;font-size:13px;">Account Login</p>
 
     <form id="loginForm">
       <label for="email">Email</label>
@@ -37,12 +47,15 @@
   </div>
 </section>
 
-<!-- ADMIN DASHBOARD SCREEN -->
+<!-- ==================== ADMIN DASHBOARD SCREEN ==================== -->
 <section id="dashboardScreen" class="hidden">
-  <header>
+  <header class="app-topbar">
     <div class="header-left">
       <button id="menuToggle" class="menu-toggle" type="button" aria-label="Buksan ang menu">☰</button>
-      <h2>GPS Monitoring System (Admin)</h2>
+      <div class="title-stack">
+        <h2>GPS Monitoring System (Admin)</h2>
+        <span class="subtitle" id="welcomeText">Administrator</span>
+      </div>
     </div>
     <button class="logout-btn" id="logoutAdmin">Logout</button>
   </header>
@@ -67,55 +80,261 @@
     </nav>
 
     <main>
-      <h1 id="pageTitle">Dashboard</h1>
-      <p class="subtitle" id="welcomeText">Administrator</p>
+      <div class="lifted-sheet is-lifted" id="adminLiftedSheet">
+        <div class="sheet-trigger" id="adminSheetTrigger" role="button" tabindex="0">
+          <div class="sheet-grabber"></div>
+          <div class="sheet-top-bar">
+            <div class="sheet-heading">
+              <h1 id="pageTitle">Dashboard</h1>
+              <span id="statusMessage">Nakakonekta ang dashboard session.</span>
+            </div>
+            <span class="sheet-badge" id="adminSheetBadge">▲ Tap pataas</span>
+          </div>
+        </div>
 
-      <div class="cards">
-        <div class="card"><small>Total Users</small><strong>—</strong></div>
-        <div class="card"><small>GPS Active</small><strong>—</strong></div>
-        <div class="card"><small>GPS Unavailable</small><strong>—</strong></div>
-        <div class="card"><small>SOS Alerts</small><strong>—</strong></div>
+        <div class="sheet-content" id="adminSheetContent">
+          <div class="cards">
+            <div class="card"><small>Total Users</small><strong>—</strong></div>
+            <div class="card"><small>GPS Active</small><strong>—</strong></div>
+            <div class="card"><small>GPS Unavailable</small><strong>—</strong></div>
+            <div class="card"><small>SOS Alerts</small><strong>—</strong></div>
+          </div>
+
+          <section class="panel">
+            <h3 id="panelTitle">System Overview</h3>
+            <div id="panelContent">
+              Welcome sa GPS Monitoring System Admin Dashboard.
+            </div>
+          </section>
+        </div>
       </div>
 
-      <section class="panel">
-        <h3 id="panelTitle">System Overview</h3>
-        <div id="panelContent">
-          Welcome sa GPS Monitoring System Admin Dashboard.
+      <!-- Slide-Up Chat Drawer galing sa baba paakyat kapag na-click ang Chat -->
+      <div class="chat-slide-backdrop" id="chatSlideBackdrop"></div>
+      <div class="chat-slide-drawer" id="chatSlideDrawer" aria-hidden="true">
+        <div class="chat-slide-handle">
+          <div class="chat-slide-pill"></div>
+          <span>💬 Live User Chat</span>
         </div>
-        <p id="statusMessage">Nakakonekta ang dashboard session.</p>
-      </section>
+        <div class="chat-slide-host" id="chatSlideHost"></div>
+      </div>
+
+      <!-- Bottom Quick Menu Bar (Admin) -->
+      <div class="bottom-dock" id="adminBottomDock">
+        <button type="button" class="dock-btn" id="adminDockMap">📍 Map</button>
+        <button type="button" class="dock-btn" id="adminDockChat">💬 Chat</button>
+        <button type="button" class="dock-btn" id="adminDockUsers">👥 Users</button>
+        <button type="button" class="dock-btn dock-accent" id="adminDockLift">▲ Menu</button>
+      </div>
     </main>
   </div>
 </section>
 
-<!-- REGULAR USER DASHBOARD SCREEN -->
+<!-- ==================== REGULAR USER SCREEN ==================== -->
 <section id="userScreen" class="hidden">
-  <header>
-    <h2>GPS Tracker User</h2>
+  <div id="userMapContainer"></div>
+
+  <header class="floating-header">
+    <div class="fh-left">
+      <span class="live-dot"></span>
+      <div class="fh-text">
+        <h3 id="userWelcome">Maligayang Pagdating!</h3>
+        <span class="status-badge" id="gpsStatusText">Sinusuri ang GPS...</span>
+      </div>
+    </div>
     <button class="logout-btn" id="logoutUser">Logout</button>
   </header>
 
-  <div class="user-container">
-    <div class="card">
-      <h3 id="userWelcome">Maligayang Pagdating!</h3>
-      <p style="color:#64748b;margin:5px 0;">Status ng iyong GPS:</p>
-      <span class="status-badge" id="gpsStatusText">Sinusuri ang GPS...</span>
-      
-      <div style="margin-top:15px;font-size:14px;color:#475569;">
-        <p>📍 <b>Kasalukuyang Lugar:</b> <span id="userLocationName">Inaalam...</span></p>
+  <div class="floating-location-chip">
+    <span>📍 <b id="userLocationName">Inaalam...</b></span>
+  </div>
+
+  <div class="lifted-sheet is-lifted" id="userLiftedSheet">
+    <div class="sheet-trigger" id="userSheetTrigger" role="button" tabindex="0">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-top-bar">
+        <span class="sheet-title-tag">🧭 TUKLAS Menu · Controls, Chat & Users</span>
+        <span class="sheet-badge" id="userSheetBadge">▲ Tap pataas</span>
       </div>
-
-      <!-- User MapLibre Map Container -->
-      <div id="userMapContainer"></div>
-
-      <button class="sos-btn" id="sosButton">🆘 PIPINDUTIN KAPAG EMERGENCY (SOS)</button>
     </div>
+
+    <div class="sheet-content" id="userSheetContent">
+      <div class="card" id="userSheetCard">
+        <button class="sos-btn" id="sosButton">🆘 PIPINDUTIN KAPAG EMERGENCY (SOS)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Quick Menu Bar (User) -->
+  <div class="bottom-dock" id="userBottomDock">
+    <button type="button" class="dock-btn" id="userDockCenter">🎯 Ako</button>
+    <button type="button" class="dock-btn" id="userDockChat">💬 Chat</button>
+    <button type="button" class="dock-btn" id="userDockUsers">👥 Users</button>
+    <button type="button" class="dock-btn dock-accent" id="userDockLift">▲ Menu</button>
   </div>
 </section>
 
-<!-- Ikinonekta ang hiwalay na JavaScript file -->
+<!-- Existing app.js (Walang binago sa functions) -->
 <script src="app.js"></script>
-  
 
+<!-- UI-Only Slide-Up Chat Drawer & Sheet Helper -->
+<script>
+(function () {
+  function setupLiftSheet(sheetId, triggerId, badgeId, liftBtnId) {
+    const sheet = document.getElementById(sheetId);
+    const trigger = document.getElementById(triggerId);
+    const badge = document.getElementById(badgeId);
+    const liftBtn = document.getElementById(liftBtnId);
+    if (!sheet || !trigger) return { setOpen: function () {} };
+
+    let expanded = false;
+    function setOpen(open) {
+      expanded = Boolean(open);
+      sheet.classList.toggle("is-open", expanded);
+      sheet.classList.toggle("is-lifted", !expanded);
+      if (badge) badge.textContent = expanded ? "▼ Ibaba" : "▲ Tap pataas";
+      if (liftBtn) liftBtn.textContent = expanded ? "▼ Ibaba" : "▲ Menu";
+    }
+
+    setOpen(false);
+
+    trigger.addEventListener("click", () => setOpen(!expanded));
+    trigger.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setOpen(!expanded);
+      }
+    });
+    if (liftBtn) liftBtn.addEventListener("click", () => setOpen(!expanded));
+
+    return { setOpen };
+  }
+
+  const adminSheet = setupLiftSheet("adminLiftedSheet", "adminSheetTrigger", "adminSheetBadge", "adminDockLift");
+  const userSheet = setupLiftSheet("userLiftedSheet", "userSheetTrigger", "userSheetBadge", "userDockLift");
+
+  const drawer = document.getElementById("chatSlideDrawer");
+  const backdrop = document.getElementById("chatSlideBackdrop");
+  const host = document.getElementById("chatSlideHost");
+  let originalChatParent = null;
+
+  function openChatSlideUp() {
+    if (!drawer || !host) return;
+    const panel = document.getElementById("liveChatPanel");
+    if (panel && panel.parentElement !== host) {
+      originalChatParent = panel.parentElement;
+      host.appendChild(panel);
+    }
+    drawer.classList.add("open");
+    drawer.setAttribute("aria-hidden", "false");
+    if (backdrop) backdrop.classList.add("show");
+  }
+
+  function closeChatSlideUp() {
+    if (!drawer) return;
+    drawer.classList.remove("open");
+    drawer.setAttribute("aria-hidden", "true");
+    if (backdrop) backdrop.classList.remove("show");
+    const panel = document.getElementById("liveChatPanel");
+    if (panel && originalChatParent && panel.parentElement === host) {
+      originalChatParent.appendChild(panel);
+    }
+  }
+
+  if (backdrop) {
+    backdrop.addEventListener("click", () => {
+      const closeBtn = document.getElementById("liveChatClose");
+      if (closeBtn) closeBtn.click();
+      closeChatSlideUp();
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#liveChatClose")) {
+      closeChatSlideUp();
+      return;
+    }
+
+    const popupChatBtn = e.target.closest(".lp-chat, button[data-act='live-chat']");
+    if (popupChatBtn) {
+      setTimeout(() => {
+        openChatSlideUp();
+        const inp = document.getElementById("lcInput");
+        if (inp) inp.focus();
+      }, 120);
+      return;
+    }
+
+    const otherChatBtn = e.target.closest("button[data-act='admin-chat'], button[data-act='chat']");
+    if (otherChatBtn) {
+      adminSheet.setOpen(true);
+      userSheet.setOpen(true);
+    }
+  });
+
+  // Admin bottom dock buttons
+  const adminMapBtn = document.getElementById("adminDockMap");
+  const adminChatBtn = document.getElementById("adminDockChat");
+  const adminUsersBtn = document.getElementById("adminDockUsers");
+
+  if (adminMapBtn) {
+    adminMapBtn.addEventListener("click", () => {
+      closeChatSlideUp();
+      const btn = document.querySelector('#menu button[data-page="Live GPS Map"]');
+      if (btn) btn.click();
+      adminSheet.setOpen(false);
+    });
+  }
+
+  if (adminChatBtn) {
+    adminChatBtn.addEventListener("click", () => {
+      const btn = document.querySelector('#menu button[data-page="Chat & Photos"]');
+      if (btn) btn.click();
+      adminSheet.setOpen(true);
+    });
+  }
+
+  if (adminUsersBtn) {
+    adminUsersBtn.addEventListener("click", () => {
+      closeChatSlideUp();
+      const btn = document.querySelector('#menu button[data-page="Users / Accounts"]');
+      if (btn) btn.click();
+      adminSheet.setOpen(true);
+    });
+  }
+
+  // User bottom dock buttons
+  const userCenterBtn = document.getElementById("userDockCenter");
+  const userChatBtn = document.getElementById("userDockChat");
+  const userUsersBtn = document.getElementById("userDockUsers");
+
+  if (userCenterBtn) {
+    userCenterBtn.addEventListener("click", () => {
+      const recenter = document.getElementById("recenterBtn");
+      if (recenter) recenter.click();
+    });
+  }
+
+  if (userChatBtn) {
+    userChatBtn.addEventListener("click", () => {
+      userSheet.setOpen(true);
+      setTimeout(() => {
+        const chatBox = document.getElementById("chatBox") || document.getElementById("userChatPanel");
+        if (chatBox) chatBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 160);
+    });
+  }
+
+  if (userUsersBtn) {
+    userUsersBtn.addEventListener("click", () => {
+      userSheet.setOpen(true);
+      setTimeout(() => {
+        const usersBox = document.getElementById("usersBox");
+        if (usersBox) usersBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 160);
+    });
+  }
+})();
+</script>
 </body>
 </html>
